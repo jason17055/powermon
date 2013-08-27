@@ -14,10 +14,12 @@ static HWND msgWinHandle = NULL;
 
 #define M_STOP_SERVICE  (WM_USER+101)
 
-static void
-SvcReportEvent(const TCHAR *message)
+typedef struct MyParamsStruct
 {
-}
+	int keepAliveInterval;
+} MyParams;
+
+MyParams Config = {0};
 
 static void
 report_status(DWORD currentState, DWORD exitCode, DWORD waitHint)
@@ -45,11 +47,6 @@ report_status(DWORD currentState, DWORD exitCode, DWORD waitHint)
 	/* actually report the status */
 	SetServiceStatus(statusHandle, &status);
 }
-
-typedef struct MyParamsStruct
-{
-	int dummy;
-} MyParams;
 
 static unsigned int
 get_uint_parameter(HKEY hkey, const TCHAR *param_name, unsigned int def_value)
@@ -80,7 +77,7 @@ get_registry_params(const TCHAR *service_name, MyParams *pparams)
 	HKEY hkey;
 
 	/* defaults */
-	pparams->dummy = 0;
+	pparams->keepAliveInterval = 60*30;
 
 	_sntprintf(key_path, 1000, TEXT("SYSTEM\\CurrentControlSet\\Services\\%s\\Parameters"), service_name);
 	rv = RegOpenKeyEx(HKEY_LOCAL_MACHINE, key_path,
@@ -99,13 +96,70 @@ on_powersettingchange(POWERBROADCAST_SETTING *pbs)
 {
 	if (IsEqualGUID(&pbs->PowerSetting, &GUID_MONITOR_POWER_ON)) {
 		DWORD monState = *(DWORD *)(&pbs->Data);
-		logger_printf(TEXT("GUID_MONITOR_POWER_ON, monitor state = %d"), monState);
+		if (monState == 1) {
+			logger_printf(TEXT("The monitor is on."));
+		}
+		else {
+			logger_printf(TEXT("The monitor is off."));
+		}
 	}
 	else {
 		TCHAR buf[200];
 		StringFromGUID2(&pbs->PowerSetting, buf, 200);
 		logger_printf(TEXT("other power setting change (%s)"), buf);
 	}
+}
+
+static void
+on_apmsuspend(void)
+{
+	logger_printf(TEXT("Entering standby"));
+}
+
+static void
+on_apmresume(void)
+{
+	logger_printf(TEXT("Resuming from standby"));
+}
+
+static void
+on_powerbroadcast(WPARAM wParam, LPARAM lParam)
+{
+	switch (wParam) {
+	case PBT_POWERSETTINGCHANGE:
+		on_powersettingchange((POWERBROADCAST_SETTING*)lParam);
+		break;
+
+	case PBT_APMSUSPEND:
+		on_apmsuspend();
+		break;
+
+	case PBT_APMRESUMEAUTOMATIC:
+		on_apmresume();
+		break;
+
+	case PBT_APMRESUMESUSPEND:
+		logger_printf(TEXT("The system is waking due to user activity."));
+		break;
+
+	default:
+		logger_printf(TEXT("WM_POWERBROADCAST wParam=%d lParam=%d"), wParam, lParam);
+	}
+}
+
+#define MY_TIMER_ID 1
+
+static void
+set_keep_alive_timer(void)
+{
+	SetTimer(msgWinHandle, MY_TIMER_ID, Config.keepAliveInterval * 1000, NULL);
+}
+
+static void
+on_keep_alive_timer(void)
+{
+	logger_printf(TEXT("Still alive."));
+	set_keep_alive_timer();
 }
 
 static LRESULT CALLBACK
@@ -117,13 +171,14 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		return 0;
 	case WM_POWERBROADCAST:
-		if (wParam == PBT_POWERSETTINGCHANGE) {
-			on_powersettingchange((POWERBROADCAST_SETTING*)lParam);
-		}
-		else {
-			logger_printf(TEXT("WM_POWERBROADCAST wParam=%d lParam=%d"), wParam, lParam);
-		}
+		on_powerbroadcast(wParam, lParam);
 		return 0;
+	case WM_TIMER:
+		if (wParam == MY_TIMER_ID) {
+			on_keep_alive_timer();
+			return 0;
+		}
+		break;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
@@ -131,12 +186,13 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 static void
 SvcInit(DWORD dwArgc, TCHAR *lpszArgv[])
 {
-	MyParams params = {0};
 	MSG msg;
 
 	/* look in registry for guidance */
-	get_registry_params(lpszArgv[0], &params);
+	get_registry_params(lpszArgv[0], &Config);
 	logger_message(TEXT("startup: version 2013.08.27"));
+
+	set_keep_alive_timer();
 
 	report_status(SERVICE_RUNNING, NO_ERROR, 0);
 
@@ -147,7 +203,7 @@ SvcInit(DWORD dwArgc, TCHAR *lpszArgv[])
 	}
 
 	/* if here, then the quit message was received */
-	logger_message(TEXT("received stop signal"));
+	logger_message(TEXT("Shutdown"));
 	report_status(SERVICE_STOPPED, NO_ERROR, 0);
 	return;
 }
