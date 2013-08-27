@@ -11,7 +11,7 @@ mcpowermon.exe: $(OBJECTS)
 	link /out:$@ $(OBJECTS) $(ADDLIB)
 
 .c.obj:
-	$(CC) /c $<
+	$(CC) /DUNICODE=1 /D_UNICODE=1 /c $<
 
 main.obj: main.c main.h config.h install.h perror.h
 install.obj: install.c install.h config.h perror.h

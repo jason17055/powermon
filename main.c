@@ -94,6 +94,20 @@ get_registry_params(const TCHAR *service_name, MyParams *pparams)
 	RegCloseKey(hkey);
 }
 
+static void
+on_powersettingchange(POWERBROADCAST_SETTING *pbs)
+{
+	if (IsEqualGUID(&pbs->PowerSetting, &GUID_MONITOR_POWER_ON)) {
+		DWORD monState = *(DWORD *)(&pbs->Data);
+		logger_printf(TEXT("GUID_MONITOR_POWER_ON, monitor state = %d"), monState);
+	}
+	else {
+		TCHAR buf[200];
+		StringFromGUID2(&pbs->PowerSetting, buf, 200);
+		logger_printf(TEXT("other power setting change (%s)"), buf);
+	}
+}
+
 static LRESULT CALLBACK
 my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -101,6 +115,11 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case M_STOP_SERVICE:
 		PostQuitMessage(0);
+		return 0;
+	case WM_POWERBROADCAST:
+		if (wParam == PBT_POWERSETTINGCHANGE) {
+			on_powersettingchange((POWERBROADCAST_SETTING*)lParam);
+		}
 		return 0;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
@@ -174,6 +193,8 @@ my_wndclass(void)
 static void WINAPI
 ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
 {
+	HPOWERNOTIFY hpowernot;
+
 	hInst = GetModuleHandle(NULL);
 
 	/* create a message-only window for message handling */
@@ -185,12 +206,16 @@ ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
 		NULL,
 		hInst,
 		NULL);
+	if (msgWinHandle == NULL) {
+		logger_printf(TEXT("Warning: failed to create message-only window"));
+		return;
+	}
 
 	/* register the handler function for the service */
 	statusHandle = RegisterServiceCtrlHandlerEx(SVCNAME, SvcCtrlHandler, NULL);
 	if (!statusHandle)
 	{
-		SvcReportEvent(TEXT("RegisterServiceCtrlHandler"));
+		logger_printf(TEXT("Warning: failed to register Service Ctrl Handler"));
 		return;
 	}
 
@@ -200,8 +225,23 @@ ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
 	/* report initial status to the SCM */
 	report_status(SERVICE_START_PENDING, NO_ERROR, 3000);
 
+	/* register the application to receive power setting notifications */
+	hpowernot = RegisterPowerSettingNotification(
+		msgWinHandle,
+		&GUID_MONITOR_POWER_ON,
+		DEVICE_NOTIFY_WINDOW_HANDLE
+		);
+	if (hpowernot == NULL) {
+		logger_printf(TEXT("Warning: failed to register for power notifications"));
+	}
+
 	/* report service-specific initialization and work */
 	SvcInit(dwArgc, lpszArgv);
+
+	/* cleanup */
+	if (hpowernot != NULL) {
+		UnregisterPowerSettingNotification(hpowernot);
+	}
 }
 
 void __cdecl
