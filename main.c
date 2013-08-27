@@ -120,6 +120,9 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (wParam == PBT_POWERSETTINGCHANGE) {
 			on_powersettingchange((POWERBROADCAST_SETTING*)lParam);
 		}
+		else {
+			logger_printf(TEXT("WM_POWERBROADCAST wParam=%d lParam=%d"), wParam, lParam);
+		}
 		return 0;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
@@ -197,12 +200,12 @@ ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
 
 	hInst = GetModuleHandle(NULL);
 
-	/* create a message-only window for message handling */
+	/* create a hidden toplevel window for message handling */
 	msgWinHandle = CreateWindow(
 		my_wndclass(),
 		NULL,
 		0, 0, 0, 0, 0, /* style and dimensions */
-		HWND_MESSAGE,  /* parent */
+		NULL,  /* no parent -> top-level window */
 		NULL,
 		hInst,
 		NULL);
