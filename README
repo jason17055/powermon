@@ -1,0 +1,12 @@
+This implements a Windows service called "MCPowerMon"
+which watches for power state changes, logs them, and occassionally
+reports them to a central server.
+
+Open a Windows 7 SDK build environment.
+Then type
+
+  setenv /x86
+  nmake
+
+
+
