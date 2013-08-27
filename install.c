@@ -34,7 +34,7 @@ do_install(void)
 		SVCNAME,
 		SERVICE_ALL_ACCESS,
 		SERVICE_WIN32_OWN_PROCESS,
-		SERVICE_DEMAND_START,
+		SERVICE_AUTO_START,
 		SERVICE_ERROR_NORMAL,
 		path,
 		NULL, /* no load ordering group */
