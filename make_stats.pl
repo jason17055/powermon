@@ -8,6 +8,7 @@ use POSIX "strftime";
 our %Config;
 require "/srv/lab-auditor/etc/Config.pl";
 
+my $st = 'Off';
 my $dbh = DBI->connect($Config{'db_dsn'},
 			$Config{'db_user'}, $Config{'db_pass'},
 		{ RaiseError => 1, AutoCommit => 0 });
@@ -59,7 +60,6 @@ print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
 		strftime('%Y-%m-%d', localtime($period_start)),
 		strftime('%Y-%m-%d', localtime($period_end))
 		);
-	my $st = 'Awake';
 	my $last_time = 0;
 	my %times;
 	while (my $row = $sth->fetchrow_arrayref)
@@ -69,7 +69,11 @@ print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
 		my $elapsed = $t - $last_time;
 
 		if ($mess =~ /^startup/) {
-			$times{'Off'} += $elapsed;
+			if ($st eq 'Off' && $elapsed < 300) {
+				# less than five minutes off, looks like a reboot
+				$st = 'Awake';
+			}
+			$times{$st} += $elapsed;
 			$st = "Awake";
 		}
 		elsif ($mess =~ /^Shutdown/) {
