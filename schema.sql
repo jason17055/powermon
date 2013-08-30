@@ -8,3 +8,14 @@ CREATE TABLE LogEntry (
 	Posted DATETIME NOT NULL,
 	Message VARCHAR(4000) NOT NULL
 	);
+
+CREATE TABLE PowerStats (
+	Host INTEGER NOT NULL,
+	Period CHAR(1) NOT NULL,
+	PeriodStart DATE NOT NULL,
+	TimeAwake INTEGER NOT NULL,
+	TimeScreenOff INTEGER NOT NULL,
+	TimeSleep INTEGER NOT NULL,
+	TimeOff INTEGER NOT NULL,
+	PRIMARY KEY (Host,Period,PeriodStart)
+	);

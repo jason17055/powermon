@@ -33,7 +33,8 @@ while (my $row = $sth->fetchrow_arrayref)
 {
 	my $host_id = $row->[0];
 	my $t = str2time($row->[1]);
-	my $d = $row->[3] ? str2time($row->[3])+86400 : str2time($row->[2]);
+	#my $d = $row->[3] ? str2time($row->[3])+86400 : str2time($row->[2]);
+	my $d = str2time($row->[2]);
 	while ($d + 86400 <= $t) {
 		process_host($row->[0], $d, $d+86400);
 		$d += 86400;
@@ -66,7 +67,6 @@ print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
 		my $t = str2time($row->[0]) - $period_start;
 		my $mess = $row->[1];
 		my $elapsed = $t - $last_time;
-		$last_time = $t;
 
 		if ($mess =~ /^startup/) {
 			$times{'Off'} += $elapsed;
@@ -77,17 +77,16 @@ print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
 			$st = "Off";
 		}
 		elsif ($mess =~ /^Still alive/) {
-			if ($st eq 'Off') {
-				$st = 'Awake';
-			}
+			next unless ($st =~ /Awake|ScreenOff/);
 			$times{$st} += $elapsed;
-			$st = 'Awake' unless ($st =~ /Awake|ScreenOff/);
 		}
 		elsif ($mess =~ /^The monitor is on/) {
+			next unless ($st =~ /Awake|ScreenOff/);
 			$times{$st} += $elapsed;
 			$st = 'Awake';
 		}
 		elsif ($mess =~ /^The monitor is off/) {
+			next unless ($st =~ /Awake|ScreenOff/);
 			$times{$st} += $elapsed;
 			$st = 'ScreenOff';
 		}
@@ -102,14 +101,18 @@ print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
 		else {
 			print "$mess\n";
 		}
+		$last_time = $t;
 	}
+
+	my $final_elapsed = 86400-$last_time;
+	$times{$st} += $final_elapsed;
 
 	printf " * TimeAwake     %6.1f\n", ($times{Awake}||0)/60;
 	printf " * TimeScreenOff %6.1f\n", ($times{ScreenOff}||0)/60;
 	printf " * TimeSleep     %6.1f\n", ($times{Sleep}||0)/60;
 	printf " * TimeOff       %6.1f\n", ($times{Off}||0)/60;
 
-	$dbh->do("INSERT INTO PowerStats
+	$dbh->do("REPLACE INTO PowerStats
 		(Host,Period,PeriodStart,
 		TimeAwake,TimeScreenOff,TimeSleep,TimeOff)
 		VALUES (
