@@ -8,7 +8,7 @@ use POSIX "strftime";
 our %Config;
 require "/srv/lab-auditor/etc/Config.pl";
 
-my $st = 'Off';
+my $st;
 my $dbh = DBI->connect($Config{'db_dsn'},
 			$Config{'db_user'}, $Config{'db_pass'},
 		{ RaiseError => 1, AutoCommit => 0 });
@@ -37,6 +37,7 @@ while (my $row = $sth->fetchrow_arrayref)
 	#my $d = $row->[3] ? str2time($row->[3])+86400 : str2time($row->[2]);
 	my $d = str2time($row->[2])
 		or die("Invalid datetime $row->[2]\n");
+	$st = 'Off';
 	while ($d + 86400 <= $t) {
 		process_host($row->[0], $d, $d+86400);
 		$d += 86400;
