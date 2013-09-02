@@ -35,7 +35,8 @@ while (my $row = $sth->fetchrow_arrayref)
 	my $host_id = $row->[0];
 	my $t = str2time($row->[1]);
 	#my $d = $row->[3] ? str2time($row->[3])+86400 : str2time($row->[2]);
-	my $d = str2time($row->[2]);
+	my $d = str2time($row->[2])
+		or die("Invalid datetime $row->[2]\n");
 	while ($d + 86400 <= $t) {
 		process_host($row->[0], $d, $d+86400);
 		$d += 86400;
@@ -49,6 +50,7 @@ sub process_host
 print "doing host $host_id\n";
 print "  start = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_start))."\n";
 print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
+die if $period_start < 86400*365;
 	my $sth = $dbh->prepare("
 		SELECT Posted,Message
 		FROM LogEntry
