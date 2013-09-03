@@ -13,6 +13,9 @@ static HWND mainWin = NULL;
 static void
 on_create(HWND hWnd)
 {
+	LOGFONT lf = {0};
+	HFONT hfont;
+
 	CreateWindow(
 		TEXT("STATIC"),
 		TEXT("This is the primary message."),
@@ -23,6 +26,13 @@ on_create(HWND hWnd)
 		(HMENU)(IDC_PRIM),
 		hInst,
 		NULL);
+
+	lf.lfHeight = 36;
+	lf.lfPitchAndFamily = FF_SWISS;
+	hfont = CreateFontIndirect(&lf);
+	SendDlgItemMessage(hWnd, IDC_PRIM,
+			WM_SETFONT, (WPARAM)hfont, TRUE);
+
 	CreateWindow(
 		TEXT("STATIC"),
 		TEXT("Second message.."),
@@ -33,6 +43,13 @@ on_create(HWND hWnd)
 		(HMENU)(IDC_SEC),
 		hInst,
 		NULL);
+
+	lf.lfHeight = 24;
+	lf.lfPitchAndFamily = FF_SWISS;
+	hfont = CreateFontIndirect(&lf);
+	SendDlgItemMessage(hWnd, IDC_SEC,
+			WM_SETFONT, (WPARAM)hfont, TRUE);
+
 }
 
 static INT_PTR
@@ -41,6 +58,23 @@ on_ctlcolorstatic(HWND hWnd, HDC hDC, HWND hwndCtrl)
 	SetTextColor(hDC, RGB(0,0,0));
 	SetBkMode(hDC, TRANSPARENT);
 	return (INT_PTR) GetStockObject(NULL_BRUSH);
+}
+
+static void
+on_size(HWND hWnd, WPARAM sizeType, int newWidth, int newHeight)
+{
+	MoveWindow(
+		GetDlgItem(hWnd, IDC_PRIM),
+		0, newHeight/2-40,
+		newWidth, 40,
+		TRUE
+		);
+	MoveWindow(
+		GetDlgItem(hWnd, IDC_SEC),
+		0, newHeight/2,
+		newWidth, 40,
+		TRUE
+		);
 }
 
 static LRESULT CALLBACK
@@ -58,6 +92,10 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	case WM_CTLCOLORSTATIC:
 		return on_ctlcolorstatic(hWnd, (HDC)wParam, (HWND)lParam);
+
+	case WM_SIZE:
+		on_size(hWnd, wParam, LOWORD(lParam), HIWORD(lParam));
+		return 0;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
