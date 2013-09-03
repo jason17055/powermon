@@ -5,16 +5,59 @@
 #include <stdio.h>
 #include <time.h>
 
+#define IDC_PRIM 101
+#define IDC_SEC  102
+
 static HWND mainWin = NULL;
+
+static void
+on_create(HWND hWnd)
+{
+	CreateWindow(
+		TEXT("STATIC"),
+		TEXT("This is the primary message."),
+		WS_CHILD | WS_VISIBLE | SS_CENTER,
+		0, 0,
+		500, 100,
+		hWnd,
+		(HMENU)(IDC_PRIM),
+		hInst,
+		NULL);
+	CreateWindow(
+		TEXT("STATIC"),
+		TEXT("Second message.."),
+		WS_CHILD | WS_VISIBLE | SS_CENTER,
+		0, 100,
+		500, 100,
+		hWnd,
+		(HMENU)(IDC_SEC),
+		hInst,
+		NULL);
+}
+
+static INT_PTR
+on_ctlcolorstatic(HWND hWnd, HDC hDC, HWND hwndCtrl)
+{
+	SetTextColor(hDC, RGB(0,0,0));
+	SetBkMode(hDC, TRANSPARENT);
+	return (INT_PTR) GetStockObject(NULL_BRUSH);
+}
 
 static LRESULT CALLBACK
 my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
 	{
+	case WM_CREATE:
+		on_create(hWnd);
+		return 0;
+
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		break;
+
+	case WM_CTLCOLORSTATIC:
+		return on_ctlcolorstatic(hWnd, (HDC)wParam, (HWND)lParam);
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
@@ -30,7 +73,7 @@ my_wndclass(void)
 		wc.cbWndExtra = 0;
 		wc.hInstance = hInst;
 		wc.lpszClassName = MY_WNDCLASS_NAME;
-		wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+		wc.hbrBackground = GetStockObject(WHITE_BRUSH);
 		registered = RegisterClass(&wc);
 	}
 	return MY_WNDCLASS_NAME;
