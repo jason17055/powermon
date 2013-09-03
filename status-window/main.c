@@ -135,6 +135,7 @@ my_wndclass(void)
 		wc.hInstance = hInst;
 		wc.lpszClassName = MY_WNDCLASS_NAME;
 		wc.hbrBackground = GetStockObject(WHITE_BRUSH);
+		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 		registered = RegisterClass(&wc);
 	}
 	return MY_WNDCLASS_NAME;
