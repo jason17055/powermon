@@ -125,6 +125,30 @@ check_for_active_sessions(void)
 }
 
 static void
+launch_status_window(const TCHAR *status_window_cmd)
+{
+	STARTUPINFO si = { sizeof(STARTUPINFO) };
+	PROCESS_INFORMATION pi = {0};
+	BOOL rv;
+
+	si.lpDesktop = TEXT("WinSta0\\WinLogon");
+
+	rv = CreateProcess(
+		NULL,
+		(TCHAR*) status_window_cmd,
+		NULL, /* lpProcessAttributes */
+		NULL, /* lpThreadAttributes */
+		FALSE, /* bInheritHandles */
+		0, /* dwCreationFlags */
+		NULL, /* lpEnvironment */
+		NULL, /* lpCurrentDirectory */
+		&si,
+		&pi);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+}
+
+static void
 create_process(const TCHAR *script)
 {
 	STARTUPINFO si = { sizeof(STARTUPINFO) };
@@ -155,6 +179,7 @@ typedef struct MyParamsStruct
 	TCHAR *script;
 	unsigned int delay;
 	unsigned int hour;
+	TCHAR *status_window_cmd;
 } MyParams;
 
 static unsigned int
@@ -178,6 +203,31 @@ get_uint_parameter(HKEY hkey, const TCHAR *param_name, unsigned int def_value)
 	}
 }
 
+static TCHAR *
+get_string_parameter(HKEY hkey, const TCHAR *param_name)
+{
+	TCHAR tmp[MAX_PATH];
+	DWORD dwSize = sizeof(tmp);
+	LONG rv;
+
+	rv = RegQueryValueEx(hkey, param_name,
+		NULL, NULL,
+		(BYTE *) tmp,
+		&dwSize);
+	if (rv == ERROR_SUCCESS)
+	{
+		size_t nchars = dwSize / sizeof(TCHAR);
+		if (nchars >= MAX_PATH) { nchars = MAX_PATH - 1; }
+		tmp[nchars] = '\0';
+		return _tcsdup(tmp);
+	}
+	else
+	{
+		logger_printf(TEXT("RegQueryValueEx for '%s' returned %d"), param_name, rv);
+		return NULL;
+	}
+}
+
 static void
 get_registry_params(const TCHAR *service_name, MyParams *pparams)
 {
@@ -196,30 +246,11 @@ get_registry_params(const TCHAR *service_name, MyParams *pparams)
 	if (rv != ERROR_SUCCESS)
 		return;
 
-	{
-		TCHAR tmp[MAX_PATH];
-		DWORD dwSize = sizeof(tmp);
-
-		rv = RegQueryValueEx(hkey, TEXT("Script"),
-			NULL, NULL,
-			(BYTE *) tmp,
-			&dwSize);
-		if (rv == ERROR_SUCCESS)
-		{
-			size_t nchars = dwSize / sizeof(TCHAR);
-			if (nchars >= MAX_PATH) { nchars = MAX_PATH - 1; }
-			tmp[nchars] = '\0';
-			pparams->script = _tcsdup(tmp);
-		}
-		else
-		{
-			logger_printf(TEXT("RegQueryValueEx for 'Script' returned %d"), rv);
-		}
-	}
+	pparams->script = get_string_parameter(hkey, TEXT("Script"));
+	pparams->status_window_cmd = get_string_parameter(hkey, TEXT("StatusWindowCommand"));
 
 	pparams->delay = get_uint_parameter(hkey, TEXT("Delay"), 0);
 	pparams->hour = get_uint_parameter(hkey, TEXT("Hour"), 101);
-
 	RegCloseKey(hkey);
 }
 
@@ -317,6 +348,13 @@ SvcInit(DWORD dwArgc, TCHAR *lpszArgv[])
 	{
 		logger_printf(TEXT("resetting the idle timer"));
 		SetThreadExecutionState(ES_SYSTEM_REQUIRED | ES_CONTINUOUS);
+
+		if (params.status_window_cmd != NULL)
+		{
+			logger_printf(TEXT("launching status window process"));
+			launch_status_window(params.status_window_cmd);
+		}
+
 		logger_printf(TEXT("launching script %s"), params.script);
 		create_process(params.script);
 	}
