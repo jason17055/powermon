@@ -1,3 +1,5 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include "main.h"
 #include "hinst.h"
 #include <windows.h>
@@ -9,6 +11,26 @@
 #define IDC_SEC  102
 
 static HWND mainWin = NULL;
+static SOCKET mySocket = {0};
+
+static void
+createServerSocket(void)
+{
+	struct addrinfo hints;
+	struct addrinfo *result;
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	hints.ai_flags = AI_PASSIVE;
+
+	getaddrinfo("127.0.0.1", "56599", &hints, &result);
+	mySocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	bind(mySocket, result->ai_addr, (int)result->ai_addrlen);
+	freeaddrinfo(result);
+
+}
 
 static void
 on_create(HWND hWnd)
@@ -50,6 +72,7 @@ on_create(HWND hWnd)
 	SendDlgItemMessage(hWnd, IDC_SEC,
 			WM_SETFONT, (WPARAM)hfont, TRUE);
 
+	createServerSocket();
 }
 
 static INT_PTR
@@ -143,12 +166,22 @@ makeMainWin(void)
 	}
 }
 
+static void
+initApp(HINSTANCE hInstance)
+{
+	WSADATA wsaData = {0};
+
+	hInst = hInstance;
+
+	WSAStartup(MAKEWORD(2,2), &wsaData);
+}
+
 int CALLBACK
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	MSG msg;
 
-	hInst = hInstance;
+	initApp(hInstance);
 
 	/* create a window for displaying the message */
 	makeMainWin();

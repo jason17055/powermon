@@ -2,7 +2,8 @@ CC = cl
 
 OBJECTS = main.obj hinst.obj
 ADDLIB = secur32.lib shlwapi.lib gdi32.lib ole32.lib user32.lib \
-		advapi32.lib
+		advapi32.lib \
+		ws2_32.lib
 
 all: statuswin.exe
 
