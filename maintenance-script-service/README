@@ -1,0 +1,11 @@
+This implements a Windows service called "Maintenance Script"
+which simply runs a batch file from the network.
+
+Open a Windows 7 SDK build environment.
+Then type
+
+  setenv /x86
+  nmake
+
+
+
