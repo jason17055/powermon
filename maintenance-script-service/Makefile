@@ -14,7 +14,7 @@ maintenance-script-service.exe: $(OBJECTS)
 .c.obj:
 	$(CC) /c $<
 
-main.obj: main.c main.h config.h install.h perror.h
+main.obj: main.c main.h config.h install.h perror.h launch_in_session.h
 install.obj: install.c install.h config.h perror.h
 perror.obj: perror.c perror.h
 logger.obj: logger.c logger.h printf.h

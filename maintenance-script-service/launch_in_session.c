@@ -104,7 +104,7 @@ make_token_from_pid(DWORD winLogonPid)
 }
 
 BOOL
-launch_in_session(TCHAR *processExe)
+launch_in_session(const TCHAR *processExe)
 {
 	DWORD winLogonPid = find_process("winlogon.exe", 1);
 	HANDLE hTokenDup = make_token_from_pid(winLogonPid);
@@ -116,7 +116,7 @@ launch_in_session(TCHAR *processExe)
 	}
 
 	si.cb = sizeof(STARTUPINFO);
-	si.lpDesktop = TEXT("winsta0\\winlogon");
+	si.lpDesktop = TEXT("WinSta0\\WinLogon");
 
 	CreateProcessAsUser(
 		hTokenDup,  /* client access token */
@@ -133,6 +133,8 @@ launch_in_session(TCHAR *processExe)
 		);
 
 	CloseHandle(hTokenDup);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
 
 	return TRUE;
 }

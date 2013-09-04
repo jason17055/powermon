@@ -1,6 +1,7 @@
 #include "main.h"
 #include "config.h"
 #include "install.h"
+#include "launch_in_session.h"
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -127,25 +128,7 @@ check_for_active_sessions(void)
 static void
 launch_status_window(const TCHAR *status_window_cmd)
 {
-	STARTUPINFO si = { sizeof(STARTUPINFO) };
-	PROCESS_INFORMATION pi = {0};
-	BOOL rv;
-
-	si.lpDesktop = TEXT("WinSta0\\WinLogon");
-
-	rv = CreateProcess(
-		NULL,
-		(TCHAR*) status_window_cmd,
-		NULL, /* lpProcessAttributes */
-		NULL, /* lpThreadAttributes */
-		FALSE, /* bInheritHandles */
-		0, /* dwCreationFlags */
-		NULL, /* lpEnvironment */
-		NULL, /* lpCurrentDirectory */
-		&si,
-		&pi);
-	CloseHandle(pi.hProcess);
-	CloseHandle(pi.hThread);
+	launch_in_session(status_window_cmd);
 }
 
 static void
