@@ -41,7 +41,7 @@ on_create(HWND hWnd)
 
 	CreateWindow(
 		TEXT("STATIC"),
-		TEXT("This is the primary message."),
+		NULL,
 		WS_CHILD | WS_VISIBLE | SS_CENTER,
 		0, 0,
 		500, 100,
@@ -58,7 +58,7 @@ on_create(HWND hWnd)
 
 	CreateWindow(
 		TEXT("STATIC"),
-		TEXT("Second message.."),
+		NULL,
 		WS_CHILD | WS_VISIBLE | SS_CENTER,
 		0, 100,
 		500, 100,
@@ -125,14 +125,18 @@ on_udp_packet(void)
 			SetDlgItemText(mainWin, IDC_SEC, TEXT(""));
 			ShowWindow(mainWin, SW_SHOW);
 		}
-		else if (buf[1] == '2') {
+		else if (buf[0] == '2') {
 			WCHAR *tmp = tcsdup_printf(L"%S", &buf[1]);
 			SetDlgItemText(mainWin, IDC_SEC, tmp);
 			free(tmp);
 		}
-		else if (buf[1] == '0') {
+		else if (buf[0] == '0') {
 			SetDlgItemText(mainWin, IDC_PRIM, TEXT(""));
 			SetDlgItemText(mainWin, IDC_SEC, TEXT(""));
+		}
+		else if (strcmp(buf, "-hide") == 0) {
+			ShowWindow(mainWin, SW_HIDE);
+			return;
 		}
 		InvalidateRect(mainWin, NULL, TRUE);
 	}
@@ -194,7 +198,7 @@ makeMainWin(void)
 
 	mainWin = CreateWindow(
 		my_wndclass(),
-		NULL,
+		TEXT("Please Wait. Updates are being applied."),
 		WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_BORDER | WS_VISIBLE, /* style */
 		screenWidth/2-winWidth/2,
 		screenHeight/2-winHeight/2,
