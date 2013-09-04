@@ -2,6 +2,7 @@
 #include <ws2tcpip.h>
 #include "main.h"
 #include "hinst.h"
+#include "printf.h"
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -9,6 +10,7 @@
 
 #define IDC_PRIM 101
 #define IDC_SEC  102
+#define M_PACKET (WM_USER+1)
 
 static HWND mainWin = NULL;
 static SOCKET mySocket = {0};
@@ -29,7 +31,6 @@ createServerSocket(void)
 	mySocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	bind(mySocket, result->ai_addr, (int)result->ai_addrlen);
 	freeaddrinfo(result);
-
 }
 
 static void
@@ -73,6 +74,9 @@ on_create(HWND hWnd)
 			WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	createServerSocket();
+	WSAAsyncSelect(mySocket, hWnd,
+		M_PACKET,
+		FD_READ);
 }
 
 static INT_PTR
@@ -100,6 +104,40 @@ on_size(HWND hWnd, WPARAM sizeType, int newWidth, int newHeight)
 		);
 }
 
+static void
+on_udp_packet(void)
+{
+	char buf[1500];
+
+	int nbytes = recvfrom(mySocket,
+			buf, sizeof(buf)-1,
+			0, /*flags */
+			NULL, NULL /* optional src addr struct and len */
+			);
+
+	if (nbytes > 0) {
+		buf[nbytes] = '\0';
+
+		if (buf[0] == '1') {
+			WCHAR *tmp = tcsdup_printf(L"%S", &buf[1]);
+			SetDlgItemText(mainWin, IDC_PRIM, tmp);
+			free(tmp);
+			SetDlgItemText(mainWin, IDC_SEC, TEXT(""));
+			ShowWindow(mainWin, SW_SHOW);
+		}
+		else if (buf[1] == '2') {
+			WCHAR *tmp = tcsdup_printf(L"%S", &buf[1]);
+			SetDlgItemText(mainWin, IDC_SEC, tmp);
+			free(tmp);
+		}
+		else if (buf[1] == '0') {
+			SetDlgItemText(mainWin, IDC_PRIM, TEXT(""));
+			SetDlgItemText(mainWin, IDC_SEC, TEXT(""));
+		}
+		InvalidateRect(mainWin, NULL, TRUE);
+	}
+}
+
 static LRESULT CALLBACK
 my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -118,6 +156,10 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	case WM_SIZE:
 		on_size(hWnd, wParam, LOWORD(lParam), HIWORD(lParam));
+		return 0;
+
+	case M_PACKET:
+		on_udp_packet();
 		return 0;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
