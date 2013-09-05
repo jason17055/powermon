@@ -1,0 +1,11 @@
+Set environment variables before executing script
+ * PREFIX to identify location of C:\maintenance
+ * MAINTENANCEPATH to identify location of scripts
+ * LOGFILE to identify logfile
+ * PATH - include C:\maintenance\libexec or something like that in path
+
+Watchdog timer
+ * Kill maintenance script if watchdog timer exceeded
+ * Provide a utility to extend watchdog timer
+  (used by a maintenance script that's about to execute a command
+   which is known to take quite a bit of time)
