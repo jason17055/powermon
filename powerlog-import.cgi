@@ -68,6 +68,8 @@ sub handle_upload
 			my $datestr = substr($line, 0, 19);
 			$line = substr($line, 20);
 
+			next unless $datestr =~ /^\d{4}-\d{2}-\d{2}/;
+
 			$dbh->do("
 			INSERT INTO LogEntry (Host,Posted,Message)
 			SELECT ?,?,?
