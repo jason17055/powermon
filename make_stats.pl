@@ -14,7 +14,7 @@ my $dbh = DBI->connect($Config{'db_dsn'},
 		{ RaiseError => 1, AutoCommit => 0 });
 
 my $sth = $dbh->prepare("
-	SELECT t1.Host,LastData,FirstData,LastStat
+	SELECT t1.Host,LastData,FirstData,LastStat,h.Name
 	FROM (
 		SELECT Host,MAX(DATE(Posted)) AS LastData,MIN(DATE(Posted)) AS FirstData
 		FROM LogEntry
@@ -27,6 +27,8 @@ my $sth = $dbh->prepare("
 		GROUP BY Host
 		) t2
 		ON t2.Host=t1.Host
+	JOIN Host h
+		ON h.id=t1.Host
 	ORDER BY Host
 	");
 $sth->execute;
@@ -34,9 +36,12 @@ while (my $row = $sth->fetchrow_arrayref)
 {
 	my $host_id = $row->[0];
 	my $t = str2time($row->[1]);
-	#my $d = $row->[3] ? str2time($row->[3])+86400 : str2time($row->[2]);
-	my $d = str2time($row->[2])
-		or die("Invalid datetime $row->[2]\n");
+	my $d = str2time($row->[2]);
+	my $host_name = $row->[4];
+	if (!$d) {
+		warn("Invalid datetime '$row->[2]' (host $row->[4])\n");
+		next;
+	}
 	$st = 'Off';
 	while ($d + 86400 <= $t) {
 		process_host($row->[0], $d, $d+86400);
