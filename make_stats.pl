@@ -8,13 +8,12 @@ use POSIX "strftime";
 our %Config;
 require "/srv/lab-auditor/etc/Config.pl";
 
-my $st;
 my $dbh = DBI->connect($Config{'db_dsn'},
 			$Config{'db_user'}, $Config{'db_pass'},
 		{ RaiseError => 1, AutoCommit => 0 });
 
 my $sth = $dbh->prepare("
-	SELECT t1.Host,LastData,FirstData,LastStat,h.Name
+	SELECT t1.Host,LastData,FirstData,LastStat,h.Name,h.LastPowerState,h.LastPowerTime
 	FROM (
 		SELECT Host,MAX(DATE(Posted)) AS LastData,MIN(DATE(Posted)) AS FirstData
 		FROM LogEntry
@@ -42,17 +41,44 @@ while (my $row = $sth->fetchrow_arrayref)
 		warn("Invalid datetime '$row->[2]' (host $row->[4])\n");
 		next;
 	}
-	$st = 'Off';
-	while ($d + 86400 <= $t) {
-		process_host($row->[0], $d, $d+86400);
-		$d += 86400;
+	my $last_state = $row->[5] || 'Off';
+	my $last_time = $row->[6] ? str2time($row->[6]) : $d;
+	my $count = 0;
+	while ($last_time + 86400 <= $t) {
+		$last_state = process_host_day($row->[0], $last_time, $last_state);
+		$last_time += 86400;
+		$count++;
+	}
+
+	if ($count)
+	{
+printf "TIME=%s, STATE=%s\n", strftime('%Y-%m-%d %H:%M:%S', localtime($last_time)), $last_state;
+
+	$dbh->do("
+		UPDATE Host
+		SET LastPowerState=?, LastPowerTime=?
+		WHERE id=?
+		", {},
+		$last_state,
+		strftime('%Y-%m-%d %H:%M:%S', localtime($last_time)),
+		$host_id,
+		);
+	$dbh->do("
+		DELETE FROM LogEntry
+		WHERE Host=?
+		AND Posted<?
+		", {},
+		$row->[0],
+		strftime('%Y-%m-%d', localtime($last_time)),
+		);
 	}
 }
 
-sub process_host
+sub process_host_day
 {
-	my ($host_id, $period_start, $period_end) = @_;
+	my ($host_id, $period_start, $st) = @_;
 
+my $period_end = $period_start + 86400;
 print "doing host $host_id\n";
 print "  start = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_start))."\n";
 print "  end = ".strftime('%Y-%m-%d %H:%M:%S', localtime($period_end))."\n";
@@ -138,4 +164,5 @@ die if $period_start < 86400*365;
 		$times{Sleep} || 0,
 		$times{Off} || 0,
 		);
+	return $st;
 }
