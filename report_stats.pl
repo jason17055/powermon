@@ -40,25 +40,30 @@ my $sth = $dbh->prepare("
 	ORDER BY Host.Name,PeriodStart
 	");
 $sth->execute;
-my $last_host = "";
+my $cur_host = { name => "" };
 my $cur_time = time;
 while (my $row = $sth->fetchrow_arrayref)
 {
 	my ($host_name, $period, $time0, $time1, $time2, $time3) = @$row;
-	print "-- ".uc($host_name)." --\n" if $last_host ne $host_name && $do_detail;
-	$last_host = $host_name;
+	if ($cur_host->{name} ne $host_name) {
+		$cur_host = { name => $host_name };
+		print "-- ".uc($host_name)." --\n" if $do_detail;
+	}
 
 	if ($do_detail) {
 	printf "%-12s %5d %5d %5d %5d\n",
 		$period, $time0, $time1, $time2, $time3;
 	}
 
+	$cur_host->{screen_off} += $time1;
+	$cur_host->{asleep} += $time2;
+
 	my $period_t = str2time($period);
 	delete $warnings{$host_name};
-	if ($period_t + 3*86400 < $cur_time) {
+	if ($period_t + 4*86400 < $cur_time) {
 		$warnings{$host_name} = "No data since $period.";
 	}
-	elsif ($time2 == 0 && $time1 > 1000) {
+	elsif ($cur_host->{asleep} == 0 && $cur_host->{screen_off} > 86400) {
 		$warnings{$host_name} = "Unable to sleep.";
 	}
 }
