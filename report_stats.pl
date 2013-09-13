@@ -56,7 +56,7 @@ while (my $row = $sth->fetchrow_arrayref)
 	my $period_t = str2time($period);
 	delete $warnings{$host_name};
 	if ($period_t + 3*86400 < $cur_time) {
-		$warnings{$host_name} = "No data. (Has it been powered off?)";
+		$warnings{$host_name} = "No data since $period.";
 	}
 	elsif ($time2 == 0 && $time1 > 1000) {
 		$warnings{$host_name} = "Unable to sleep.";
