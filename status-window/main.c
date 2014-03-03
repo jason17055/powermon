@@ -10,10 +10,15 @@
 
 #define IDC_PRIM 101
 #define IDC_SEC  102
+#define IDC_WATCHDOG_TIMER 103
 #define M_PACKET (WM_USER+1)
+#define WATCHDOG_TIMER 10
 
 static HWND mainWin = NULL;
 static SOCKET mySocket = {0};
+static BOOL watchdog_enabled = FALSE;
+static DWORD watchdog_warn_time = 0;
+static DWORD watchdog_expire_time = 0;
 
 static void
 createServerSocket(void)
@@ -73,6 +78,17 @@ on_create(HWND hWnd)
 	SendDlgItemMessage(hWnd, IDC_SEC,
 			WM_SETFONT, (WPARAM)hfont, TRUE);
 
+	CreateWindow(
+		TEXT("STATIC"),
+		NULL,
+		WS_CHILD | SS_CENTER,
+		0, 100,
+		500, 100,
+		hWnd,
+		(HMENU)(IDC_WATCHDOG_TIMER),
+		hInst,
+		NULL);
+
 	createServerSocket();
 	WSAAsyncSelect(mySocket, hWnd,
 		M_PACKET,
@@ -84,12 +100,23 @@ on_ctlcolorstatic(HWND hWnd, HDC hDC, HWND hwndCtrl)
 {
 	SetTextColor(hDC, RGB(0,0,0));
 	SetBkMode(hDC, TRANSPARENT);
-	return (INT_PTR) GetStockObject(NULL_BRUSH);
+	return (INT_PTR) GetStockObject(WHITE_BRUSH);
 }
 
 static void
 on_size(HWND hWnd, WPARAM sizeType, int newWidth, int newHeight)
 {
+	/* calculate height of standard text */
+	int timHeight;
+	{
+		TEXTMETRIC tm = {0};
+		HDC hdc = GetDC(GetDlgItem(hWnd, IDC_WATCHDOG_TIMER));
+		GetTextMetrics(hdc, &tm);
+		ReleaseDC(GetDlgItem(hWnd, IDC_WATCHDOG_TIMER), hdc);
+
+		timHeight = tm.tmHeight;
+	}
+
 	MoveWindow(
 		GetDlgItem(hWnd, IDC_PRIM),
 		0, newHeight/2-40,
@@ -102,6 +129,78 @@ on_size(HWND hWnd, WPARAM sizeType, int newWidth, int newHeight)
 		newWidth, 40,
 		TRUE
 		);
+	MoveWindow(
+		GetDlgItem(hWnd, IDC_WATCHDOG_TIMER),
+		0, newHeight-timHeight,
+		newWidth, timHeight,
+		TRUE
+		);
+}
+
+static void
+log_watchdog_warning(void)
+{
+	//TODO
+}
+
+static void
+on_watchdog_timer(void)
+{
+	DWORD curTime = GetTickCount();
+	INT32 timeWarn = (INT32)(watchdog_warn_time - curTime);
+	INT32 timeExpire = (INT32)(watchdog_expire_time - curTime);
+
+	if (timeExpire <= 0) {
+
+		/* initiate reboot */
+		/*system("C:\\maintenance\\leave-maintenance-mode.bat");*/
+		system("shutdown /r /c \"watchdog timeout\" /t 0");
+		SetDlgItemText(mainWin, IDC_WATCHDOG_TIMER, TEXT("Forcing a reboot."));
+		KillTimer(mainWin, WATCHDOG_TIMER);
+		return;
+	}
+
+	if (timeWarn <= 0) {
+
+		log_watchdog_warning();
+
+	{
+	WCHAR *tmp = tcsdup_printf(TEXT("The operation is taking longer than expected. A reboot will be forced in %ds"), (timeExpire/1000)+1);
+	SetDlgItemText(mainWin, IDC_WATCHDOG_TIMER, tmp);
+	free(tmp);
+
+	ShowWindow(GetDlgItem(mainWin, IDC_WATCHDOG_TIMER), SW_SHOW);
+	}
+
+	}
+
+	SetTimer(mainWin, WATCHDOG_TIMER, (timeExpire % 1000)+10, NULL);
+}
+
+static void
+cancel_watchdog(void)
+{
+	if (watchdog_enabled) {
+		KillTimer(mainWin, WATCHDOG_TIMER);
+		ShowWindow(GetDlgItem(mainWin, IDC_WATCHDOG_TIMER), SW_HIDE);
+		watchdog_enabled = FALSE;
+	}
+}
+
+static void
+reset_watchdog(int time_sec)
+{
+	DWORD curTime = GetTickCount();
+	watchdog_warn_time = curTime + (time_sec * 1000) / 2;
+	watchdog_expire_time = curTime + (time_sec * 1000);
+
+	if (watchdog_enabled) {
+		KillTimer(mainWin, WATCHDOG_TIMER);
+	}
+
+	/* schedule watchdog timer */
+	watchdog_enabled = TRUE;
+	on_watchdog_timer();
 }
 
 static void
@@ -138,6 +237,14 @@ on_udp_packet(void)
 			ShowWindow(mainWin, SW_HIDE);
 			return;
 		}
+		else if (strcmp(buf, "-watchdog_cancel") == 0) {
+			cancel_watchdog();
+			return;
+		}
+		else if (strncmp(buf, "-watchdog ", 9) == 0) {
+			reset_watchdog(atoi(&buf[9]));
+			return;
+		}
 		InvalidateRect(mainWin, NULL, TRUE);
 	}
 }
@@ -161,6 +268,13 @@ my_wndproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_SIZE:
 		on_size(hWnd, wParam, LOWORD(lParam), HIWORD(lParam));
 		return 0;
+
+	case WM_TIMER:
+		if (wParam == WATCHDOG_TIMER) {
+			on_watchdog_timer();
+			return 0;
+		}
+		break;
 
 	case M_PACKET:
 		on_udp_packet();
